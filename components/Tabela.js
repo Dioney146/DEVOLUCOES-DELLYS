@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useFiltros, ThFiltro } from "./FiltroColuna";
 import { moeda, num, txt } from "../lib/formato";
 
@@ -20,13 +21,17 @@ const numerico = (t) => ["moeda", "peso", "int"].includes(t);
 // Tabela com filtro/classificação em cada coluna (igual ao Excel)
 //  colunas: [{ key, label, tipo?: "moeda"|"peso"|"int"|"status", valor?: (linha) => valor }]
 //  antes / depois: colunas extras (checkbox, botões) -> { th, td: (linha) => jsx }  (antes.th pode ser (visiveis) => jsx)
-export default function Tabela({ linhas, colunas, antes, depois, chaveLinha = (l) => l.id, classeLinha, rodape, vazio = "Nenhum registro encontrado." }) {
+export default function Tabela({ linhas, colunas, antes, depois, chaveLinha = (l) => l.id, classeLinha, rodape, vazio = "Nenhum registro encontrado.", limite = 0 }) {
   const defs = Object.fromEntries(colunas.map((c) => [c.key, {
     valor: c.valor || ((l) => (numerico(c.tipo) ? Number(l[c.key]) || 0 : txt(l[c.key]))),
     numero: numerico(c.tipo),
   }]));
   const f = useFiltros(defs);
   const visiveis = f.aplicar(linhas);
+  // com muitas linhas, desenha aos poucos (botão "mostrar mais")
+  const [qtd, setQtd] = useState(limite);
+  useEffect(() => { setQtd(limite); }, [limite, linhas]);
+  const desenhar = limite && qtd < visiveis.length ? visiveis.slice(0, qtd) : visiveis;
 
   if (!linhas.length) return <div className="aviso info">{vazio}</div>;
 
@@ -46,7 +51,7 @@ export default function Tabela({ linhas, colunas, antes, depois, chaveLinha = (l
             </tr>
           </thead>
           <tbody>
-            {visiveis.map((l) => (
+            {desenhar.map((l) => (
               <tr key={chaveLinha(l)} className={classeLinha?.(l) || ""}>
                 {antes && <td className="c">{antes.td(l)}</td>}
                 {colunas.map((c) => (
@@ -60,6 +65,13 @@ export default function Tabela({ linhas, colunas, antes, depois, chaveLinha = (l
           </tbody>
         </table>
       </div>
+      {desenhar.length < visiveis.length && (
+        <div className="mais-linhas">
+          Mostrando {desenhar.length} de {visiveis.length} linhas ·{" "}
+          <button className="btn link" onClick={() => setQtd(qtd + limite)}>mostrar mais {Math.min(limite, visiveis.length - desenhar.length)}</button>{" "}
+          <button className="btn link" onClick={() => setQtd(visiveis.length)}>mostrar todas</button>
+        </div>
+      )}
       <div className="rodape-tabela">
         <span>{visiveis.length === linhas.length ? `${linhas.length} registro(s)` : `${visiveis.length} de ${linhas.length} registro(s)`}</span>
         {rodape?.(visiveis)}
