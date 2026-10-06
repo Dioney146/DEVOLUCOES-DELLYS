@@ -275,3 +275,12 @@ th.filtrado .btn-filtro { background: var(--acc); border-color: var(--acc); colo
 .kpi .val { font-size: 1.35rem; }
 .rodape-info { color: var(--txt3); font-size: .74rem; text-align: center; margin-top: 4px; }
 @media (max-width: 1100px) { .kpis.kpis-5 { grid-template-columns: repeat(2, 1fr); } }
+
+/* aba Tabela */
+.mais-linhas { text-align: center; padding: 10px; color: var(--txt2); font-size: .82rem; }
+tr.sem-nomes td:nth-child(5), tr.sem-nomes td:nth-child(6) { color: var(--txt3); font-style: italic; }
+.devol-tabela .grade { font-size: .74rem; }
+.devol-tabela .grade th, .devol-tabela .grade td { padding: 6px 7px; }
+.devol-tabela .grade td { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.devol-tabela .cartao-corpo { padding: 10px; }
+.devol-tabela .grade th { letter-spacing: 0; }

@@ -2,11 +2,31 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Grafico from "../components/Grafico";
+import Tabela from "../components/Tabela";
 import { agoraManaus, dataISO, moeda, kg, num, txt } from "../lib/formato";
 
 const URL_CONTROLE = process.env.NEXT_PUBLIC_URL_CONTROLE || "https://controle-de-entregas-iota.vercel.app";
 const URL_TRANSF = process.env.NEXT_PUBLIC_URL_TRANSFERENCIAS || "https://reentregas-dellys.vercel.app";
 const NI = ["NÃO IDENTIFICADO", "NÃO IDENTIFICADA"];
+
+// colunas da aba Tabela (na ordem pedida)
+const COLS_TABELA = [
+  { key: "nota_venda", label: "NF Venda" },
+  { key: "nota_devolucao", label: "NF Devolução" },
+  { key: "carregamento", label: "Num Car" },
+  { key: "placa", label: "Placa" },
+  { key: "motorista", label: "Motorista" },
+  { key: "entregador", label: "Entregador" },
+  { key: "cod_cliente", label: "Cód Cli" },
+  { key: "cliente", label: "Cliente" },
+  { key: "destino", label: "Destino" },
+  { key: "motivo", label: "Motivo" },
+  { key: "vendedor", label: "Vendedor" },
+  { key: "devolucionista", label: "Devolucionista" },
+  { key: "praca", label: "Praça" },
+  { key: "valor", label: "Valor", tipo: "moeda" },
+];
+const ABAS = [{ k: "painel", t: "📊 Painel" }, { k: "tabela", t: "📋 Tabela" }];
 
 async function api(url, opcoes = {}) {
   const r = await fetch(url, { ...opcoes, headers: { "Content-Type": "application/json", ...(opcoes.headers || {}) }, cache: "no-store" });
@@ -80,6 +100,9 @@ function Painel({ usuario, aoSair }) {
   const [busca, setBusca] = useState("");
   const [maximizado, setMaximizado] = useState(null);
   const [atualizando, setAtualizando] = useState(false);
+  const [aba, setAbaEstado] = useState("painel");
+  useEffect(() => { const h = location.hash.slice(1); if (ABAS.some((a) => a.k === h)) setAbaEstado(h); }, []);
+  const setAba = (k) => { setAbaEstado(k); history.replaceState(null, "", `#${k}`); };
 
   const carregar = useCallback(async (fresco = false) => {
     setAtualizando(true);
@@ -109,11 +132,13 @@ function Painel({ usuario, aoSair }) {
       if (trans && l.transportadora !== trans) return false;
       if (sup && l.supervisor !== sup) return false;
       if (zona && l.zona !== zona) return false;
-      if (b && ![l.cliente, l.placa, l.nota_devolucao, l.nota_venda, l.motorista, l.entregador, l.praca].join(" ").toUpperCase().includes(b)) return false;
+      if (b && ![l.cliente, l.placa, l.nota_devolucao, l.nota_venda, l.carregamento, l.cod_cliente, l.motorista, l.entregador, l.praca, l.vendedor, l.devolucionista].join(" ").toUpperCase().includes(b)) return false;
       return true;
     });
   }, [todas, de, ate, motivo, trans, sup, zona, busca]);
 
+  // aba Tabela: devoluções mais recentes primeiro
+  const recentesPrimeiro = useMemo(() => [...filtradas].sort((a, b) => iso(b.dt_entrada).localeCompare(iso(a.dt_entrada)) || b.id - a.id), [filtradas]);
   const totValor = filtradas.reduce((s, l) => s + (Number(l.valor) || 0), 0);
   const totPeso = filtradas.reduce((s, l) => s + (Number(l.peso) || 0), 0);
   const clientes = new Set(filtradas.map((l) => l.cod_cliente || l.cliente)).size;
@@ -139,11 +164,23 @@ function Painel({ usuario, aoSair }) {
   }
   function limpar() { setMotivo(""); setTrans(""); setSup(""); setZona(""); setBusca(""); }
 
+  async function baixarExcel(vis) {
+    const XLSX = await import("xlsx");
+    const linhasX = vis.map((l) => Object.fromEntries([
+      ["Data Devolução", l.dt_entrada || ""],
+      ...COLS_TABELA.map((c) => [c.label, c.tipo === "moeda" ? Number(l[c.key]) || 0 : txt(l[c.key])]),
+    ]));
+    const ws = XLSX.utils.json_to_sheet(linhasX);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Devoluções");
+    XLSX.writeFile(wb, `devolucoes_${de || "inicio"}_a_${ate || "hoje"}.xlsx`);
+  }
+
   async function sair() { await fetch("/api/sair", { method: "POST" }).catch(() => {}); aoSair(); }
 
   return (
     <>
-      <Topo usuario={usuario} sair={sair} />
+      <Topo usuario={usuario} sair={sair} aba={aba} setAba={setAba} />
       <main className="corpo">
         <div className="barra-filtro devol-filtros">
           <label className="rotulo">Devolução de<input className="campo" type="date" value={de} onChange={(e) => setDe(e.target.value)} /></label>
@@ -167,7 +204,9 @@ function Painel({ usuario, aoSair }) {
 
         {erro && <div className="aviso erro">⚠️ {erro}</div>}
         {dados && !dados.retornoConectado && (
-          <div className="aviso alerta">⚠️ Retorno do Controle de Entregas não conectado (variáveis SUPABASE_URL / SUPABASE_ANON_KEY). Motorista e entregador vêm só da aba NOMES.</div>
+          <div className="aviso alerta">⚠️ {dados.retornoMotivo === "sem-variaveis"
+            ? "Retorno do Controle de Entregas não conectado: faltam as variáveis SUPABASE_URL e SUPABASE_ANON_KEY neste projeto da Vercel (depois de criar, faça Redeploy)."
+            : `Não consegui ler o Retorno do Controle de Entregas (${dados.retornoMotivo}). Confira se SUPABASE_URL e SUPABASE_ANON_KEY são os mesmos do Controle de Entregas.`} Por enquanto motorista e entregador vêm só da aba NOMES.</div>
         )}
 
         {!dados ? (!erro && <div className="carregando">Carregando devoluções da planilha…</div>) : (
@@ -181,6 +220,30 @@ function Painel({ usuario, aoSair }) {
                 sub={`${num(identificadas)} de ${num(filtradas.length)} pelo Retorno/Nomes`} />
             </div>
 
+            {aba === "tabela" ? (
+              <div className="cartao devol-tabela">
+                <div className="cartao-cab">
+                  <span className="cartao-titulo">📋 Devoluções — nota a nota</span>
+                  <span className="cartao-conta">{num(filtradas.length)} notas · {moeda(totValor)}</span>
+                </div>
+                <div className="cartao-corpo">
+                  <Tabela
+                    linhas={recentesPrimeiro}
+                    colunas={COLS_TABELA}
+                    chaveLinha={(l) => l.id}
+                    limite={300}
+                    classeLinha={(l) => (l.origem_nomes ? "" : "sem-nomes")}
+                    vazio="Sem devoluções no filtro."
+                    rodape={(vis) => (
+                      <>
+                        <span>Total: <b>{moeda(vis.reduce((s, l) => s + (Number(l.valor) || 0), 0))}</b></span>
+                        <button className="btn mini" onClick={() => baixarExcel(vis)}>⬇️ Baixar Excel</button>
+                      </>
+                    )}
+                  />
+                </div>
+              </div>
+            ) : (
             <div className={`graficos ${maximizado ? "um" : ""}`}>
               {mostrar.map((g) => (
                 <Grafico
@@ -192,6 +255,7 @@ function Painel({ usuario, aoSair }) {
                 />
               ))}
             </div>
+            )}
             <p className="rodape-info">
               Base: aba <b>{dados.aba}</b> · {num(todas.length)} devoluções · motorista e entregador pelo <b>Retorno</b> do Controle de Entregas (placa + data de saída).
               Atualizado {new Date(dados.atualizadoEm).toLocaleTimeString("pt-BR", { timeZone: "America/Manaus", hour: "2-digit", minute: "2-digit" })}.
@@ -225,7 +289,7 @@ function Kpi({ cor, ico, rot, val, sub }) {
   );
 }
 
-function Topo({ usuario, sair }) {
+function Topo({ usuario, sair, aba, setAba }) {
   const [aberto, setAberto] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
@@ -239,6 +303,11 @@ function Topo({ usuario, sair }) {
         <div className="marca-logo">📦</div>
         <div><b>Delly's <span>Devoluções</span></b><small>Painel de devoluções</small></div>
       </div>
+      <nav className="abas">
+        {ABAS.map((a) => (
+          <button key={a.k} className={`aba ${aba === a.k ? "ativa" : ""}`} onClick={() => setAba(a.k)}>{a.t}</button>
+        ))}
+      </nav>
       <div className="topo-dir" ref={ref}>
         <a className="link-outro" href={URL_CONTROLE} target="_blank" rel="noopener noreferrer">🚚 <span>Controle de Entregas</span> ↗</a>
         <a className="link-outro" href={URL_TRANSF} target="_blank" rel="noopener noreferrer">🔁 <span>Transferências</span> ↗</a>
