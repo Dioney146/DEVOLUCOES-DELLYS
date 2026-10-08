@@ -257,7 +257,7 @@ function Painel({ usuario, aoSair }) {
             </div>
             )}
             <p className="rodape-info">
-              Base: aba <b>{dados.aba}</b> · {num(todas.length)} devoluções · motorista e entregador pelo <b>Retorno</b> do Controle de Entregas (placa + data de entrega).
+              Base: aba <b>{dados.aba}</b> · {num(todas.length)} devoluções · motorista e entregador pelo <b>Retorno</b> do Controle de Entregas (placa + data de entrada da devolução).
               Atualizado {new Date(dados.atualizadoEm).toLocaleTimeString("pt-BR", { timeZone: "America/Manaus", hour: "2-digit", minute: "2-digit" })}.
             </p>
           </>
