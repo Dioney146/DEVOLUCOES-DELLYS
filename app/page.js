@@ -14,7 +14,7 @@ const COLS_TABELA = [
   { key: "nota_venda", label: "NF Venda" },
   { key: "nota_devolucao", label: "NF Devolução" },
   { key: "carregamento", label: "Num Car" },
-  { key: "placa", label: "Placa" },
+  { key: "placa_exib", label: "Placa" }, // placa da nota (⇄ placa nova, quando foi trocada no frete)
   { key: "motorista", label: "Motorista" },
   { key: "entregador", label: "Entregador" },
   { key: "cod_cliente", label: "Cód Cli" },
@@ -133,13 +133,15 @@ function Painel({ usuario, aoSair }) {
       if (trans && l.transportadora !== trans) return false;
       if (sup && l.supervisor !== sup) return false;
       if (zona && l.zona !== zona) return false;
-      if (b && ![l.cliente, l.placa, l.nota_devolucao, l.nota_venda, l.carregamento, l.cod_cliente, l.motorista, l.entregador, l.praca, l.vendedor, l.devolucionista].join(" ").toUpperCase().includes(b)) return false;
+      if (b && ![l.cliente, l.placa, l.nota_devolucao, l.nota_venda, l.placa_retorno, l.carregamento, l.cod_cliente, l.motorista, l.entregador, l.praca, l.vendedor, l.devolucionista].join(" ").toUpperCase().includes(b)) return false;
       return true;
     });
   }, [todas, de, ate, motivo, trans, sup, zona, busca]);
 
   // aba Tabela: devoluções mais recentes primeiro
-  const recentesPrimeiro = useMemo(() => [...filtradas].sort((a, b) => iso(b.dt_entrada).localeCompare(iso(a.dt_entrada)) || b.id - a.id), [filtradas]);
+  const recentesPrimeiro = useMemo(() => [...filtradas]
+    .sort((a, b) => iso(b.dt_entrada).localeCompare(iso(a.dt_entrada)) || b.id - a.id)
+    .map((l) => ({ ...l, placa_exib: l.placa_retorno ? `${l.placa} ⇄ ${l.placa_retorno}` : l.placa })), [filtradas]);
   const totValor = filtradas.reduce((s, l) => s + (Number(l.valor) || 0), 0);
   const totPeso = filtradas.reduce((s, l) => s + (Number(l.peso) || 0), 0);
   const clientes = new Set(filtradas.map((l) => l.cod_cliente || l.cliente)).size;
